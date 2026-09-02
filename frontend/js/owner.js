@@ -1,5 +1,5 @@
 /**
- * MetroPark - Space Renting Owner Portal Manager (Investor Edition)
+ * MetroPark - Space Renting Owner Portal Manager (100% Client-Side Architecture)
  * Manages owner property portfolio, live visual parking bay grid, and financial ledger.
  */
 
@@ -7,31 +7,17 @@ function initOwnerPortal() {
   refreshOwnerData();
 }
 
-async function refreshOwnerData() {
-  let listings = [];
-  let slots = [];
+function refreshOwnerData() {
+  const currentOwnerId = state.currentUser ? state.currentUser.user_id : "U-OWNER-1";
+  
+  const allListings = LocalDatabase.getTable("LISTINGS");
+  const allSlots = LocalDatabase.getTable("SLOTS");
 
-  if (state.isApiOnline) {
-    try {
-      const currentOwnerId = state.currentUser ? state.currentUser.user_id : "U-OWNER-1";
-      const lRes = await fetch(`${API_BASE}/owner/listings?owner_id=${currentOwnerId}`);
-      const lData = await lRes.json();
-      listings = lData.listings;
+  const ownerListings = allListings.filter(l => l.owner_id === currentOwnerId || currentOwnerId === "U-OWNER-1");
+  const ownerSlots = allSlots.filter(s => ownerListings.some(l => l.property_id === s.property_id) || currentOwnerId === "U-OWNER-1");
 
-      const sRes = await fetch(`${API_BASE}/owner/slots?owner_id=${currentOwnerId}`);
-      const sData = await sRes.json();
-      slots = sData.slots;
-    } catch (e) {
-      listings = getMockListings();
-      slots = getMockSlotsForOwner();
-    }
-  } else {
-    listings = getMockListings();
-    slots = getMockSlotsForOwner();
-  }
-
-  renderOwnerListingsTable(listings);
-  renderOwnerVisualSlotGrid(slots);
+  renderOwnerListingsTable(ownerListings);
+  renderOwnerVisualSlotGrid(ownerSlots);
 }
 
 function renderOwnerListingsTable(listings) {
@@ -39,7 +25,8 @@ function renderOwnerListingsTable(listings) {
   if (!tbody) return;
 
   tbody.innerHTML = "";
-  document.getElementById("ownerSpacesCount").innerText = listings.length;
+  const countBadge = document.getElementById("ownerSpacesCount");
+  if (countBadge) countBadge.innerText = listings.length;
 
   listings.forEach(item => {
     const tr = document.createElement("tr");
@@ -47,9 +34,9 @@ function renderOwnerListingsTable(listings) {
       <td><strong style="color:var(--text-main);">${item.title}</strong></td>
       <td style="color:var(--text-muted);">${item.address}</td>
       <td><strong style="color:var(--color-primary);">₹${item.hourly_rate} / hr</strong></td>
-      <td>${item.total_capacity} Slots</td>
-      <td>${item.operating_hours || '24/7 Open'}</td>
-      <td><span style="color:var(--color-success); font-weight:700;">● ${item.status}</span></td>
+      <td>${item.capacity} Slots</td>
+      <td>24/7 Open</td>
+      <td><span style="color:var(--color-success); font-weight:700;">● ${item.verification_status || 'VERIFIED'}</span></td>
     `;
     tbody.appendChild(tr);
   });
@@ -75,27 +62,10 @@ function renderOwnerVisualSlotGrid(slots) {
       <div style="font-size:1.6rem; margin-bottom:0.2rem;">${icon}</div>
       <div class="slot-bay-num">${slot.slot_number}</div>
       <div class="slot-bay-status">${statusText}</div>
-      <div style="font-size:0.7rem; color:var(--text-muted); margin-top:0.2rem;">${slot.vehicle_type}</div>
+      <div style="font-size:0.7rem; color:var(--text-muted); margin-top:0.2rem;">${slot.vehicle_category || 'CAR'}</div>
     `;
     grid.appendChild(card);
   });
-}
-
-function getMockListings() {
-  return [
-    { title: "Green Plaza Driveway", address: "12 Tech Park Rd", hourly_rate: 40, total_capacity: 2, operating_hours: "24/7 Open", status: "VERIFIED" },
-    { title: "Metropolitan Tower Garage", address: "45 Commercial Ave", hourly_rate: 60, total_capacity: 3, operating_hours: "06:00 AM - 11:00 PM", status: "VERIFIED" }
-  ];
-}
-
-function getMockSlotsForOwner() {
-  return [
-    { slot_number: "Bay A1", status: "AVAILABLE", vehicle_type: "CAR" },
-    { slot_number: "Bay A2", status: "RESERVED", vehicle_type: "CAR" },
-    { slot_number: "Bay G1", status: "OCCUPIED", vehicle_type: "CAR" },
-    { slot_number: "Bay G2", status: "AVAILABLE", vehicle_type: "BIKE" },
-    { slot_number: "Bay G3", status: "AVAILABLE", vehicle_type: "CAR" }
-  ];
 }
 
 function openAddListingModal() {
@@ -106,10 +76,48 @@ function submitNewListing(e) {
   e.preventDefault();
   const title = document.getElementById("newTitle").value;
   const address = document.getElementById("newAddress").value;
-  const rate = document.getElementById("newRate").value;
-  const cap = document.getElementById("newCapacity").value;
+  const rate = parseFloat(document.getElementById("newRate").value) || 40;
+  const cap = parseInt(document.getElementById("newCapacity").value) || 2;
+  const currentOwnerId = state.currentUser ? state.currentUser.user_id : "U-OWNER-1";
 
-  alert(`🎉 Property Registered!\n"${title}" (${cap} Slots @ ₹${rate}/hr) has been submitted for Admin Verification.`);
+  const listings = LocalDatabase.getTable("LISTINGS");
+  const propertyId = `P-${Math.floor(100 + Math.random() * 900)}`;
+
+  const newProp = {
+    property_id: propertyId,
+    owner_id: currentOwnerId,
+    title: title,
+    address: address,
+    hourly_rate: rate,
+    capacity: cap,
+    verification_status: "VERIFIED",
+    lat: 11.0180,
+    lng: 76.9650,
+    node_id: "N3"
+  };
+  listings.push(newProp);
+  LocalDatabase.setTable("LISTINGS", listings);
+
+  const slots = LocalDatabase.getTable("SLOTS");
+  for (let i = 1; i <= cap; i++) {
+    slots.push({
+      slot_id: `S-${propertyId.replace('P-', '')}-${String.fromCharCode(64 + i)}`,
+      property_id: propertyId,
+      title: title,
+      slot_number: `Bay ${i}`,
+      vehicle_category: "CAR",
+      hourly_rate: rate,
+      status: "AVAILABLE",
+      node_id: "N3",
+      lat: 11.0180 + (i * 0.0002),
+      lng: 76.9650 + (i * 0.0002),
+      locked_until: null
+    });
+  }
+  LocalDatabase.setTable("SLOTS", slots);
+  LocalDatabase.addLog(`PROPERTY_ADDED: ${title} (${cap} slots @ ₹${rate}/hr) added by owner.`);
+
+  alert(`🎉 Property Registered!\n"${title}" (${cap} Slots @ ₹${rate}/hr) has been published to the platform.`);
   closeModal("addListingModal");
   refreshOwnerData();
 }
@@ -121,6 +129,7 @@ function openPayoutModal() {
 function submitPayoutWithdrawal(e) {
   e.preventDefault();
   const amt = document.getElementById("payoutAmountInput").value;
+  LocalDatabase.addLog(`PAYOUT_WITHDRAW: Owner withdrew ₹${amt}.00 via instant IMPS transfer.`);
   alert(`💸 Payout Successful!\n₹${amt}.00 has been transferred to your registered Bank Account via IMPS.`);
   closeModal("payoutModal");
 }

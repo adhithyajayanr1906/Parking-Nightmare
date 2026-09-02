@@ -1,11 +1,15 @@
 # Metropolitan Parking System (MPS) 🅿️🚗
-> **A Smart, Community-Driven Urban Mobility Platform for Private Space Monetization & Dynamic Graph-Based Parking Routing**
+> **An Enterprise-Grade, Community-Driven Urban Mobility Platform for Private Space Monetization & Dynamic Graph-Based Parking Routing**
 
 ---
 
 ## 📌 Executive Summary & Academic Project Metadata
 
-The **Metropolitan Parking System (MPS)** is an intelligent urban mobility and parking discovery ecosystem designed to resolve urban traffic congestion, lower vehicle idling fuel consumption, and monetize underutilized private parking infrastructure (residential driveways, private garages, commercial lots). By utilizing **Leaflet.js Real-World OpenStreetMap Navigation Engine**, **Dijkstra's Shortest Path Algorithm** on a weighted urban road graph, and enforcing a thread-safe atomic state machine with automated countdown timers, MPS provides seamless navigation, guaranteed slot reservation, role-based authentication (Driver, Owner, Admin), and real-time administrative oversight.
+The **Metropolitan Parking System (MPS)** is an intelligent urban mobility and parking discovery ecosystem designed to resolve urban traffic congestion, lower vehicle idling fuel consumption, and monetize underutilized private parking infrastructure (residential driveways, private garages, commercial lots).
+
+MPS provides dual deployment flexibility:
+1. **Pure Client-Side Standalone Mode**: 100% browser-executable SPA with embedded local database, Dijkstra engine, 15-minute timer worker, and MetroAI assistant. Zero backend setup required!
+2. **Full-Stack Enterprise Architecture**: Spring Boot 3.x Java backend, Redisson distributed locks, PostgreSQL + PostGIS spatial indexing, and Docker multi-container deployment.
 
 ### 🎓 Academic Context
 * **Academic Institution**: Sri Eshwar College of Engineering, Coimbatore, Tamil Nadu
@@ -18,18 +22,23 @@ The **Metropolitan Parking System (MPS)** is an intelligent urban mobility and p
 | :--- | :--- | :--- | :--- |
 | **AdhithyaJayan R** | `25CS003` | **Research & Analysis Lead** | Urban Graph formulation, SDG carbon offset metrics & requirement specification |
 | **Akshai T** | `25CS006` | **Solution & Design Lead** | Glassmorphic 3-Panel Dashboard UX/UI architecture & component layout |
-| **Dayanand K** | `25CS027` | **Technical Lead** | RESTful Flask Backend API, Dijkstra Engine, thread-safe state machine & SQLite DDL |
+| **Dayanand K** | `25CS027` | **Technical Lead** | RESTful Backend API, Dijkstra Engine, Redisson distributed state machine & PostGIS DDL |
 
 ---
 
-## 🎯 Core Objectives & UN Sustainable Development Goals (SDGs)
+## 🎯 UN Sustainable Development Goals (SDGs) & Investor Metrics
 
 ### UN SDG Alignment
 1. **SDG 11: Sustainable Cities & Communities** 🏙️
-   - Minimizes vehicle traffic congestion by eliminating "parking cruising" (the search for available street parking, which accounts for 30% of urban traffic).
+   - Minimizes vehicle traffic congestion by eliminating "parking cruising" (which accounts for 30% of urban traffic).
    - Reduces urban $CO_2$ emissions by up to **0.42 kg $CO_2$ per driver trip** using optimized graph routing.
 2. **SDG 12: Responsible Consumption & Production** ♻️
    - Maximizes efficiency of existing urban land resources by allowing private property owners to list and monetize unused driveways and garages without constructing new parking concrete structures.
+
+### 💼 Business & Revenue Model
+- **15% to 20% Platform Commission**: Charged on each completed parking reservation transaction.
+- **Unit Economics Formula**:
+  $$\text{Net Revenue} = (\text{Hourly Rate} \times \text{Hours} \times \text{Commission \%}) + \text{Booking Fee} - \text{Processing Cost}$$
 
 ---
 
@@ -38,20 +47,21 @@ The **Metropolitan Parking System (MPS)** is an intelligent urban mobility and p
 ```mermaid
 graph TD
     subgraph Frontend Single Page Application
-        DP[Driver Portal]
+        DP[Driver Workspace]
         OP[Space Owner Portal]
         AP[Admin Control Center]
+        AI[MetroAI Assistant Agent]
     end
 
-    subgraph Backend RESTful API Server (Python Flask)
-        API[Flask API Gateway]
+    subgraph Backend RESTful API & Microservices
+        API[Spring Boot / Flask Gateway]
         DE[Dijkstra Navigation Engine]
-        SM[Thread-Safe Slot State Manager]
-        TW[15-min Countdown Timer Worker]
+        RL[Redis Redisson Distributed Lock]
+        TW[15-min Countdown State Worker]
     end
 
-    subgraph Database Layer
-        DB[(SQLite / PostGIS Database)]
+    subgraph Spatial Database Layer
+        DB[(PostgreSQL + PostGIS / SQLite DB)]
     end
 
     DP -->|Route Request & Slot Booking| API
@@ -59,9 +69,9 @@ graph TD
     AP -->|Metrics & Force Lock Release| API
 
     API -->|Graph Computation d(v)| DE
-    API -->|Atomic Non-Blocking Lock| SM
-    SM <-->|Daemon Thread Poll| TW
-    API <-->|SQL Queries| DB
+    API -->|Atomic Non-Blocking Lock| RL
+    RL <-->|Daemon Poll| TW
+    API <-->|Spatial ST_DWithin Queries| DB
 ```
 
 ### 🔐 Slot State Lifecycle Pipeline & Atomic Locks
@@ -72,8 +82,6 @@ graph TD
         │                                    │  Admin Override)                 │
         └────────────────────────────────────┴──────────────────────────────────┘
 ```
-- **Atomic Locking**: Uses Python `threading.Lock` to guarantee non-blocking atomic slot reservations, preventing race conditions during high-concurrency double-bookings.
-- **Automated Timer Worker**: A background daemon thread evaluates active `RESERVED` slots every 2 seconds. If driver check-in is not confirmed within 15 minutes, the slot lock is automatically released back to `AVAILABLE`.
 
 ---
 
@@ -87,9 +95,6 @@ Where edge weight $w(u, v)$ incorporates distance, speed limit, and real-time tr
 
 $$w(u, v) = \left( \frac{\text{distance}(u, v)}{\text{speed}(u, v)} \right) \times \text{traffic\_factor}(u, v)$$
 
-### Dynamic Rerouting Mechanism
-If a target parking slot state changes to `OCCUPIED` or locked prior to driver arrival, the **Dynamic Rerouting Engine** automatically re-queries all candidate active nodes, selects the next nearest available slot in the urban graph, and seamlessly recalculates the navigation trajectory.
-
 ---
 
 ## 📂 Repository Structure
@@ -97,26 +102,30 @@ If a target parking slot state changes to `OCCUPIED` or locked prior to driver a
 ```
 Parking Nightmare/
 ├── backend/
-│   ├── app.py                # RESTful Flask API Server & Endpoints
-│   ├── dijkstra_engine.py    # Urban Graph Model & Dijkstra Algorithm
-│   ├── state_manager.py      # Thread-Safe Slot State Machine & 15m Countdown Worker
-│   ├── database.py           # SQLite Persistent Storage & Seed Generator
-│   └── requirements.txt      # Python Dependencies (Flask, Flask-CORS, pytest)
+│   ├── app.py                     # Python Flask API Gateway & Endpoints
+│   ├── Dockerfile                 # Backend Container Build
+│   └── src/main/java/com/mps/service/
+│       ├── SlotLockService.java   # Redisson Distributed Lock Implementation
+│       └── DijkstraRoutingService.java # Java Spring Boot Graph Engine
 ├── database/
-│   ├── schema.sql            # SQL DDL Schema (Users, Vehicles, Listings, Slots, Bookings, Transactions, Logs)
-│   └── parking_system.db     # SQLite Database File
+│   ├── schema.sql                 # Relational SQLite DDL Schema
+│   └── postgis_schema.sql         # PostgreSQL PostGIS Spatial DDL Schema
 ├── frontend/
-│   ├── index.html            # 3-Panel SPA Container (Driver, Owner, Admin)
+│   ├── index.html                 # Single Page Application Dashboard Entry Point
 │   ├── css/
-│   │   └── styles.css        # Glassmorphic Dark-Mode CSS Design System
+│   │   └── styles.css             # Glassmorphic Dark-Mode CSS Design System
 │   └── js/
-│       ├── app.js            # Core App Routing & API Proxy
-│       ├── driver.js         # Driver Portal & Dijkstra HTML5 Canvas Visualizer
-│       ├── owner.js          # Owner Portal & Live Slot Monitor Grid
-│       └── admin.js          # Admin Control Center & Audit Logs
-├── tests/
-│   └── test_backend.py       # Pytest & Unittest Suite for Graph & State Machine
-└── README.md                 # Project Documentation
+│       ├── db_mock.js             # Client-Side Persistent Database & State
+│       ├── dijkstra.js            # Standalone Client-Side Dijkstra Engine
+│       ├── state_manager.js       # Client-Side 15-min Countdown Timer Worker
+│       ├── app.js                 # Authentication & Role Router
+│       ├── driver.js              # Driver Workspace & Leaflet OSRM Engine
+│       ├── owner.js               # Space Owner Portal & Visual Slot Grid
+│       ├── admin.js               # Admin Control Center & System Logs
+│       └── ai_agent.js            # MetroAI Mobility Assistant Widget
+├── docker-compose.yml             # Multi-Container Orchestration (Postgres, Redis, App)
+├── ENTERPRISE_SPECIFICATION.md    # Master Architecture Specification & Pitch Deck
+└── README.md                      # Comprehensive Documentation
 ```
 
 ---
@@ -125,7 +134,7 @@ Parking Nightmare/
 
 | Expense Item | Allocated Budget | Purpose & Deliverable |
 | :--- | :--- | :--- |
-| **Cloud Hosting & Server** | ₹500 | Production Flask server deployment & SSL cert |
+| **Cloud Hosting & Server** | ₹500 | Production server deployment & SSL cert |
 | **Domain & DNS Services** | ₹500 | Project domain registry (`metropark.org`) |
 | **Maps & Location API** | ₹500 | OpenStreetMap / Leaflet / Mapbox API credits |
 | **Cloud Database Instance** | ₹500 | Managed PostgreSQL/PostGIS database instance |
@@ -135,40 +144,21 @@ Parking Nightmare/
 
 ---
 
-## 🚀 Setup & Execution Guide
+## 🚀 Execution Guide
 
-### Prerequisites
-- Python 3.9+ installed
-- Modern Web Browser (Chrome, Firefox, Edge, Safari)
-
-### 1. Backend Server Setup
-Navigate to the root directory and run the Python backend server:
+### Option 1: Standalone Web Application (100% Client-Side)
+Open `frontend/index.html` directly in any browser or launch a local web server:
 ```powershell
-# Run Backend API Server (Port 5000)
-python backend/app.py
-```
-
-### 2. Run Automated Unit Tests
-Verify Dijkstra shortest path calculations, thread-safe atomic locks, and state transitions:
-```powershell
-python tests/test_backend.py
-```
-
-### 3. Launch Frontend Web Interface
-Open `frontend/index.html` directly in your browser or serve using Python's http server:
-```powershell
-# Option A: Open directly in browser
-# Option B: Run lightweight local web server
 python -m http.server 8000 --directory frontend
 ```
-Navigate to `http://localhost:8000` to interact with all 3 modules (Driver Portal, Space Owner Portal, Admin Control Center).
+Navigate to `http://localhost:8000`.
+
+### Option 2: Docker Multi-Container Enterprise Stack
+Launch the full PostgreSQL PostGIS, Redis, Java/Python Backend, and Nginx stack:
+```powershell
+docker-compose up --build
+```
 
 ---
 
-## 🔬 Verification & Test Results
-- **Dijkstra Path Accuracy**: Tested on 12-node urban network graph with 100% path precision.
-- **Race Condition Prevention**: Concurrent reservation tests confirm non-available slots atomically reject duplicate booking attempts.
-- **Timer Worker Accuracy**: 15-minute countdown worker reliably releases expired reservations back to `AVAILABLE`.
-
----
 *Developed by Team IDEATORS (Batch 12) for Sri Eshwar College of Engineering, Department of CSE.*

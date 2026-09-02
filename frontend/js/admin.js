@@ -1,5 +1,5 @@
 /**
- * MetroPark - Admin Operations & Control Dashboard Manager (Investor Edition)
+ * MetroPark - Admin Operations & Control Dashboard Manager (100% Client-Side Architecture)
  * Provides executive oversight, system supervision, verification queue, and event logs.
  */
 
@@ -7,53 +7,52 @@ function initAdminPortal() {
   refreshAdminData();
 }
 
-async function refreshAdminData() {
-  let metrics = null;
-  let verificationQueue = [];
-  let logs = [];
+function refreshAdminData() {
+  const users = LocalDatabase.getTable("USERS");
+  const slots = LocalDatabase.getTable("SLOTS");
+  const txns = LocalDatabase.getTable("TRANSACTIONS");
+  const verifications = LocalDatabase.getTable("VERIFICATIONS");
+  const logs = LocalDatabase.getTable("LOGS");
 
-  if (state.isApiOnline) {
-    try {
-      const mRes = await fetch(`${API_BASE}/admin/metrics`);
-      metrics = await mRes.json();
+  const driversCount = users.filter(u => u.role === "DRIVER").length;
+  const ownersCount = users.filter(u => u.role === "OWNER").length;
+  const totalSlotsCount = slots.length;
 
-      const vRes = await fetch(`${API_BASE}/admin/verification`);
-      const vData = await vRes.json();
-      verificationQueue = vData.queue;
+  let grossRev = 0;
+  let platformFee = 0;
+  let ownerPayouts = 0;
 
-      const lRes = await fetch(`${API_BASE}/admin/logs`);
-      const lData = await lRes.json();
-      logs = lData.logs;
-    } catch (e) {
-      metrics = getMockAdminMetrics();
-      verificationQueue = getMockVerificationQueue();
-      logs = getMockLogs();
-    }
-  } else {
-    metrics = getMockAdminMetrics();
-    verificationQueue = getMockVerificationQueue();
-    logs = getMockLogs();
-  }
+  txns.forEach(t => {
+    grossRev += (t.gross_amount || 0);
+    platformFee += (t.platform_fee || 0);
+    ownerPayouts += (t.owner_payout || 0);
+  });
+
+  const metrics = {
+    total_drivers: driversCount,
+    total_owners: ownersCount,
+    total_slots: totalSlotsCount,
+    total_co2_saved_kg: 18.75,
+    total_revenue_inr: grossRev || 140.00,
+    platform_revenue_inr: platformFee || 14.00,
+    owner_revenue_inr: ownerPayouts || 126.00
+  };
 
   renderAdminMetrics(metrics);
-  renderVerificationQueue(verificationQueue);
+  renderVerificationQueue(verifications);
   renderAdminLogs(logs);
 }
 
 function renderAdminMetrics(m) {
   if (!m) return;
-  document.getElementById("adminDriversCount").innerText = m.total_drivers || 3;
-  document.getElementById("adminOwnersCount").innerText = m.total_owners || 3;
-  document.getElementById("adminSpacesCount").innerText = m.total_slots || 11;
-  document.getElementById("adminCarbonOffset").innerText = `${m.total_co2_saved_kg || 15.34} kg`;
+  document.getElementById("adminDriversCount").innerText = m.total_drivers || 4;
+  document.getElementById("adminOwnersCount").innerText = m.total_owners || 2;
+  document.getElementById("adminSpacesCount").innerText = m.total_slots || 8;
+  document.getElementById("adminCarbonOffset").innerText = `${m.total_co2_saved_kg} kg`;
 
-  const gross = m.total_revenue_inr || 160.00;
-  const platform = m.platform_revenue_inr || (gross * 0.1);
-  const ownerPayouts = m.owner_revenue_inr || (gross * 0.9);
-
-  document.getElementById("adminGrossRev").innerText = `₹${gross.toFixed(2)}`;
-  document.getElementById("adminPlatformFee").innerText = `₹${platform.toFixed(2)}`;
-  document.getElementById("adminOwnerPayouts").innerText = `₹${ownerPayouts.toFixed(2)}`;
+  document.getElementById("adminGrossRev").innerText = `₹${m.total_revenue_inr.toFixed(2)}`;
+  document.getElementById("adminPlatformFee").innerText = `₹${m.platform_revenue_inr.toFixed(2)}`;
+  document.getElementById("adminOwnerPayouts").innerText = `₹${m.owner_revenue_inr.toFixed(2)}`;
 }
 
 function renderVerificationQueue(queue) {
@@ -98,56 +97,24 @@ function renderAdminLogs(logs) {
   });
 }
 
-function getMockAdminMetrics() {
-  return {
-    total_drivers: 4,
-    total_owners: 3,
-    total_slots: 12,
-    total_co2_saved_kg: 18.75,
-    total_revenue_inr: 240.00,
-    platform_revenue_inr: 24.00,
-    owner_revenue_inr: 216.00
-  };
-}
+function approveItem(itemId) {
+  const queue = LocalDatabase.getTable("VERIFICATIONS");
+  const filtered = queue.filter(v => v.id !== itemId);
+  LocalDatabase.setTable("VERIFICATIONS", filtered);
+  LocalDatabase.addLog(`VERIFICATION_APPROVED: Verification request ${itemId} approved by admin.`);
 
-function getMockVerificationQueue() {
-  return [
-    { id: "V-101", type: "OWNER", name: "Ramesh Kumar", details: "Sunrise Residency Driveway (2 Slots @ ₹35/hr)" },
-    { id: "V-102", type: "DRIVER", name: "Vikram Seth", details: "Vehicle TN-38-BZ-4412 (Verified RC)" }
-  ];
-}
-
-function getMockLogs() {
-  return [
-    { timestamp: new Date().toLocaleTimeString(), event: "SYSTEM_INIT: Flask API & SQLite DB Connection Established." },
-    { timestamp: new Date().toLocaleTimeString(), event: "AUTH_SUCCESS: Driver AdhithyaJayan R logged in successfully." },
-    { timestamp: new Date().toLocaleTimeString(), event: "ROUTE_CALC: Dijkstra optimal path calculated: North City Gate -> Green Plaza Garage." },
-    { timestamp: new Date().toLocaleTimeString(), event: "SLOT_LOCK: Slot S-101-A transition to RESERVED (15m Countdown active)." }
-  ];
-}
-
-async function approveItem(itemId) {
   alert(`✅ Verification Approved!\nItem ${itemId} is now active on the MetroPark platform.`);
   refreshAdminData();
 }
 
-async function adminForceReleaseSlot() {
+function adminForceReleaseSlot() {
   const slotId = document.getElementById("overrideSlotInput").value.trim();
   if (!slotId) {
     alert("Please enter a valid Slot ID (e.g. S-101-B)");
     return;
   }
 
-  if (state.isApiOnline) {
-    try {
-      await fetch(`${API_BASE}/admin/override`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slot_id: slotId, action: "RELEASE" })
-      });
-    } catch (e) {}
-  }
-
+  stateManager.forceReleaseSlot(slotId);
   alert(`🔓 Override Executed: Slot ${slotId} force released back to AVAILABLE.`);
   document.getElementById("overrideSlotInput").value = "";
   refreshAdminData();

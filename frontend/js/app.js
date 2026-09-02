@@ -1,10 +1,8 @@
 /**
- * MetroPark - Core Controller & Strict Access Manager
+ * MetroPark - Standalone Core Controller & Access Manager (100% Client-Side Architecture)
  * Restricts single users to their designated role dashboard only (Driver, Owner, Admin).
- * Prevents unauthorized multi-dashboard access and handles registration flows.
+ * Prevents unauthorized multi-dashboard access and handles local registration flows.
  */
-
-const API_BASE = "http://127.0.0.1:5000/api";
 
 // Global Platform State
 const state = {
@@ -15,33 +13,21 @@ const state = {
   driverOriginNode: 'N1',
   maxHourlyRate: 60,
   activeBooking: null,
-  isApiOnline: false
+  isApiOnline: false           // Pure Client-Side Architecture
 };
 
 // INITIALIZATION ON DOM READY
 document.addEventListener("DOMContentLoaded", () => {
-  checkApiHealth();
+  setStandaloneStatusBadge();
   checkSavedSession();
 });
 
-async function checkApiHealth() {
+function setStandaloneStatusBadge() {
   const badgeText = document.getElementById("apiStatusText");
   const badgeDot = document.querySelector("#apiStatusBadge .pulse-dot");
 
-  try {
-    const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(2000) });
-    if (res.ok) {
-      state.isApiOnline = true;
-      if (badgeText) badgeText.innerText = "REST API Active";
-      if (badgeDot) badgeDot.style.backgroundColor = "var(--color-success)";
-    } else {
-      throw new Error();
-    }
-  } catch (err) {
-    state.isApiOnline = false;
-    if (badgeText) badgeText.innerText = "Standalone Mode";
-    if (badgeDot) badgeDot.style.backgroundColor = "var(--color-warning)";
-  }
+  if (badgeText) badgeText.innerText = "Pure Client-Side Mode";
+  if (badgeDot) badgeDot.style.backgroundColor = "var(--color-success)";
 }
 
 // SESSION & AUTH MANAGEMENT
@@ -145,28 +131,11 @@ async function handleLoginSubmit(e) {
 }
 
 async function performLogin(email, password, role) {
-  let user = null;
-
-  if (state.isApiOnline) {
-    try {
-      const res = await fetch(`${API_BASE}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, role })
-      });
-      const data = await res.json();
-      if (data.success) {
-        user = data.user;
-      } else {
-        alert(`❌ Login Failed: ${data.error}`);
-        return;
-      }
-    } catch (e) {}
-  }
+  const users = LocalDatabase.getTable("USERS");
+  let user = users.find(u => u.email.toLowerCase() === email.toLowerCase() || u.role === role);
 
   if (!user) {
-    // Client-side fallback user profile
-    const names = { DRIVER: "AdhithyaJayan R", OWNER: "Kavitha Raman", ADMIN: "AdhithyaJayan R (Admin)" };
+    const names = { DRIVER: "AdhithyaJayan R (Driver)", OWNER: "Kavitha Raman (Space Owner)", ADMIN: "AdhithyaJayan R (Admin)" };
     user = {
       user_id: `U-${role}-001`,
       full_name: names[role] || `${role} User`,
@@ -178,6 +147,8 @@ async function performLogin(email, password, role) {
 
   state.currentUser = user;
   localStorage.setItem("mps_user_session", JSON.stringify(user));
+  LocalDatabase.addLog(`AUTH_SUCCESS: ${user.full_name} (${role}) logged in to authorized dashboard.`);
+  
   hideLoginScreen();
   updateUserSessionUI();
   initUserDashboard();
@@ -191,47 +162,70 @@ async function handleRegisterSubmit(e) {
   const password = document.getElementById("regPassword").value;
   const role = state.selectedRegisterRole;
 
-  const payload = { full_name, phone, email, password, role };
+  const users = LocalDatabase.getTable("USERS");
+  const userId = `U-${role}-${Math.floor(100 + Math.random() * 900)}`;
+
+  const newUser = {
+    user_id: userId,
+    full_name: full_name,
+    email: email,
+    phone: phone,
+    role: role,
+    verification_status: "VERIFIED"
+  };
 
   if (role === 'DRIVER') {
-    payload.vehicle_type = document.getElementById("regVehicleType").value;
-    payload.vehicle_model = document.getElementById("regVehicleModel").value || "Standard Vehicle";
-    payload.license_plate = document.getElementById("regLicensePlate").value || "TN-37-X-1008";
+    newUser.vehicle_type = document.getElementById("regVehicleType").value;
+    newUser.vehicle_model = document.getElementById("regVehicleModel").value || "Standard Vehicle";
+    newUser.license_plate = document.getElementById("regLicensePlate").value || "TN-37-X-1008";
   } else {
-    payload.title = document.getElementById("regPropertyTitle").value || `${full_name}'s Garage`;
-    payload.address = document.getElementById("regPropertyAddress").value || "Coimbatore Main Road";
-    payload.hourly_rate = parseFloat(document.getElementById("regHourlyRate").value);
-    payload.capacity = parseInt(document.getElementById("regCapacity").value);
-  }
+    // Add new property listing
+    const listings = LocalDatabase.getTable("LISTINGS");
+    const propertyId = `P-${Math.floor(100 + Math.random() * 900)}`;
+    const title = document.getElementById("regPropertyTitle").value || `${full_name}'s Garage`;
+    const address = document.getElementById("regPropertyAddress").value || "Coimbatore Main Road";
+    const hourlyRate = parseFloat(document.getElementById("regHourlyRate").value) || 35;
+    const capacity = parseInt(document.getElementById("regCapacity").value) || 2;
 
-  let newUser = null;
-
-  if (state.isApiOnline) {
-    try {
-      const res = await fetch(`${API_BASE}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (data.success) {
-        newUser = data.user;
-      } else {
-        alert(`❌ Registration Failed: ${data.error}`);
-        return;
-      }
-    } catch (e) {}
-  }
-
-  if (!newUser) {
-    newUser = {
-      user_id: `U-${role}-REG`,
-      full_name: full_name,
-      email: email,
-      role: role,
-      verification_status: "VERIFIED"
+    const newProperty = {
+      property_id: propertyId,
+      owner_id: userId,
+      title: title,
+      address: address,
+      hourly_rate: hourlyRate,
+      capacity: capacity,
+      verification_status: "VERIFIED",
+      lat: 11.0180,
+      lng: 76.9650,
+      node_id: "N3"
     };
+    listings.push(newProperty);
+    LocalDatabase.setTable("LISTINGS", listings);
+
+    // Create slots for property
+    const slots = LocalDatabase.getTable("SLOTS");
+    for (let i = 1; i <= capacity; i++) {
+      slots.push({
+        slot_id: `S-${propertyId.replace('P-', '')}-${String.fromCharCode(64 + i)}`,
+        property_id: propertyId,
+        title: title,
+        slot_number: `Bay ${i}`,
+        vehicle_category: "CAR",
+        hourly_rate: hourlyRate,
+        status: "AVAILABLE",
+        node_id: "N3",
+        lat: 11.0180 + (i * 0.0002),
+        lng: 76.9650 + (i * 0.0002),
+        locked_until: null
+      });
+    }
+    LocalDatabase.setTable("SLOTS", slots);
   }
+
+  users.push(newUser);
+  LocalDatabase.setTable("USERS", users);
+
+  LocalDatabase.addLog(`USER_REGISTER: New ${role} registered: ${full_name} (${email}).`);
 
   alert(`🎉 Account Created Successfully!\nWelcome ${full_name}! Opening your authorized ${role} Dashboard...`);
   state.currentUser = newUser;
@@ -242,6 +236,9 @@ async function handleRegisterSubmit(e) {
 }
 
 function logoutUser() {
+  if (state.currentUser) {
+    LocalDatabase.addLog(`AUTH_LOGOUT: ${state.currentUser.full_name} logged out to login screen.`);
+  }
   state.currentUser = null;
   localStorage.removeItem("mps_user_session");
   showLoginScreen();
@@ -301,6 +298,8 @@ function updateUserSessionUI() {
     const adminPanel = document.getElementById("admin-panel");
     if (adminPanel) adminPanel.classList.add("active");
   }
+
+  if (typeof updateAiRoleContext === 'function') updateAiRoleContext();
 }
 
 function initUserDashboard() {
