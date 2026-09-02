@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MetroPark | Intelligent Urban Parking & Private Mobility Platform</title>
+  <meta name="description"
+    content="Next-generation smart parking discovery and monetization platform connecting drivers with private property owners using real-time location mapping and intelligent route optimization.">
+
+  <!-- LEAFLET.JS REAL-WORLD MAP TILE ENGINE -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+
+  <!-- =================================================================== -->
+  <!-- 0. INVESTOR-GRADE MANDATORY AUTHENTICATION GATEWAY -->
+  <!-- =================================================================== -->
+  <div id="login-screen" class="login-overlay active">
+    <div class="login-card glass-card">
+
+      <!-- BRAND LOGO & HEADER -->
+      <div class="login-brand-header">
+        <div class="brand-badge-icon">🅿️</div>
+        <div>
+          <h1 class="brand-headline">MetroPark</h1>
+          <p class="brand-subtext">Intelligent Urban Mobility & Private Space Monetization</p>
+        </div>
+      </div>
+
+      <!-- LOGIN vs REGISTER MODE TOGGLE TABS -->
+      <div class="auth-toggle-tabs">
+        <button id="auth-tab-login" class="auth-tab-btn active" onclick="switchAuthTab('login')">
+          🔐 Secure System Login
+        </button>
+        <button id="auth-tab-register" class="auth-tab-btn" onclick="switchAuthTab('register')">
+          ✍️ New User Registration
+        </button>
+      </div>
+
+      <!-- 0A. ROLE-BASED SYSTEM LOGIN FORM -->
+      <form id="loginForm" onsubmit="handleLoginSubmit(event)" class="auth-form-container">
+
+        <!-- VISUAL ROLE SELECTOR CARDS -->
+        <label class="form-label" style="margin-bottom: 0.35rem;">Select Account Role to Access Assigned
+          Dashboard</label>
+        <div class="role-selector-grid">
+          <div id="role-card-driver" class="role-card active" onclick="selectLoginRole('DRIVER')">
+            <div class="role-card-icon">🚗</div>
+            <div class="role-card-info">
+              <div class="role-card-title">Driver</div>
+              <div class="role-card-desc">Driver Portal Only</div>
+            </div>
+          </div>
+
+          <div id="role-card-owner" class="role-card" onclick="selectLoginRole('OWNER')">
+            <div class="role-card-icon">🏠</div>
+            <div class="role-card-info">
+              <div class="role-card-title">Space Owner</div>
+              <div class="role-card-desc">Owner Portal Only</div>
+            </div>
+          </div>
+
+          <div id="role-card-admin" class="role-card" onclick="selectLoginRole('ADMIN')">
+            <div class="role-card-icon">🛡️</div>
+            <div class="role-card-info">
+              <div class="role-card-title">Admin</div>
+              <div class="role-card-desc">Admin Control Only</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="loginEmail">Email Address / Username</label>
+          <input type="email" id="loginEmail" required class="form-control" placeholder="driver@metropark.org"
+            value="driver@metropark.org">
+        </div>
+
+        <div class="form-group">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <label class="form-label" for="loginPassword">Password</label>
+            <span id="passwordHintLabel" class="password-hint">🔑 Demo Password: <strong>driver123</strong></span>
+          </div>
+          <div class="password-input-wrapper">
+            <input type="password" id="loginPassword" required class="form-control" value="driver123">
+            <button type="button" class="pwd-toggle-btn" onclick="togglePasswordVisibility('loginPassword')"
+              title="Toggle visibility">👁️</button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-primary-lg">
+          🚀 Log In & Open My Authorized Dashboard
+        </button>
+
+        <!-- QUICK DEMO LOGINS FOR EVALUATORS -->
+        <div class="demo-quick-bar">
+          <span class="demo-bar-title">⚡ Quick 1-Click Role Login:</span>
+          <div style="display:flex; gap:0.5rem;">
+            <button type="button" class="demo-btn driver" onclick="quickDemoLogin('DRIVER')">🚗 Driver Login</button>
+            <button type="button" class="demo-btn owner" onclick="quickDemoLogin('OWNER')">🏠 Owner Login</button>
+            <button type="button" class="demo-btn admin" onclick="quickDemoLogin('ADMIN')">🛡️ Admin Login</button>
+          </div>
+        </div>
+      </form>
+
+      <!-- 0B. NEW USER REGISTRATION FORM FOR DRIVER & RENT SPACE OWNER -->
+      <form id="registerForm" onsubmit="handleRegisterSubmit(event)" class="auth-form-container" style="display:none;">
+
+        <label class="form-label" style="margin-bottom: 0.35rem;">Select Registration Type</label>
+        <div class="role-selector-grid" style="grid-template-columns: 1fr 1fr;">
+          <div id="reg-card-driver" class="role-card active" onclick="selectRegisterRole('DRIVER')">
+            <div class="role-card-icon">🚗</div>
+            <div class="role-card-info">
+              <div class="role-card-title">Driver Account</div>
+              <div class="role-card-desc">Find & reserve parking spaces</div>
+            </div>
+          </div>
+
+          <div id="reg-card-owner" class="role-card" onclick="selectRegisterRole('OWNER')">
+            <div class="role-card-icon">🏠</div>
+            <div class="role-card-info">
+              <div class="role-card-title">Rent Space Owner</div>
+              <div class="role-card-desc">Monetize driveway or garage</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+          <div class="form-group">
+            <label class="form-label">Full Name</label>
+            <input type="text" id="regFullName" required class="form-control" placeholder="e.g. Ramesh Kumar">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Phone Number</label>
+            <input type="tel" id="regPhone" required class="form-control" placeholder="+91 9876543210">
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+          <div class="form-group">
+            <label class="form-label">Email Address</label>
+            <input type="email" id="regEmail" required class="form-control" placeholder="name@example.com">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password</label>
+            <div class="password-input-wrapper">
+              <input type="password" id="regPassword" required class="form-control" value="123456"
+                placeholder="Choose password">
+              <button type="button" class="pwd-toggle-btn"
+                onclick="togglePasswordVisibility('regPassword')">👁️</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- DRIVER SPECIFIC FIELDS -->
+        <div id="driverFieldsGroup" style="display:flex; flex-direction:column; gap:0.75rem;">
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.75rem;">
+            <div class="form-group">
+              <label class="form-label">Vehicle Type</label>
+              <select id="regVehicleType" class="form-control">
+                <option value="CAR">🚗 Four-Wheeler (Car/EV)</option>
+                <option value="BIKE">🏍️ Two-Wheeler (Bike)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Vehicle Model</label>
+              <input type="text" id="regVehicleModel" class="form-control" placeholder="e.g. Honda City">
+            </div>
+            <div class="form-group">
+              <label class="form-label">License Plate</label>
+              <input type="text" id="regLicensePlate" class="form-control" placeholder="TN-37-AZ-1008">
+            </div>
+          </div>
+        </div>
+
+        <!-- RENT SPACE OWNER SPECIFIC FIELDS -->
+        <div id="ownerFieldsGroup" style="display:none; flex-direction:column; gap:0.75rem;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+            <div class="form-group">
+              <label class="form-label">Parking Property Name</label>
+              <input type="text" id="regPropertyTitle" class="form-control" placeholder="e.g. Sunrise Residency Garage">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Street Address</label>
+              <input type="text" id="regPropertyAddress" class="form-control"
+                placeholder="e.g. 14 Tech Park Rd, Coimbatore">
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+            <div class="form-group">
+              <label class="form-label">Hourly Rate (₹)</label>
+              <input type="number" id="regHourlyRate" value="35" class="form-control">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Capacity (Slots)</label>
+              <input type="number" id="regCapacity" value="2" min="1" max="10" class="form-control">
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-primary-lg">
+          ✨ Complete Registration & Open Dashboard
+        </button>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- =================================================================== -->
+  <!-- TOP APPLICATION HEADER (SINGLE ROLE DASHBOARD & LOGOUT) -->
+  <!-- =================================================================== -->
+  <header class="header">
+    <div class="brand">
+      <div class="brand-icon">🅿️</div>
+      <div>
+        <div class="brand-title">MetroPark</div>
+        <div class="brand-subtitle">Smart Urban Mobility Platform</div>
+      </div>
+    </div>
+
+    <!-- ROLE DASHBOARD TITLE BADGE (STRICT SINGLE DASHBOARD VIEW) -->
+    <div id="activeDashboardTitle" class="dashboard-active-badge">
+      <span id="activeRoleIcon">🚗</span>
+      <span id="activeRoleTitle">Driver Workspace</span>
+    </div>
+
+    <!-- USER SESSION PROFILE & LOGOUT BUTTON -->
+    <div style="display:flex; align-items:center; gap:0.85rem;">
+      <div class="status-badge" id="apiStatusBadge">
+        <span class="pulse-dot"></span>
+        <span id="apiStatusText">REST API Active</span>
+      </div>
+
+      <div id="userProfilePill" class="profile-pill">
+        <span id="userRoleBadge" class="user-role-tag">DRIVER</span>
+        <span id="userNameLabel" class="user-name-text">AdhithyaJayan R</span>
+      </div>
+
+      <!-- EXPLICIT HIGHLY VISIBLE LOGOUT BUTTON -->
+      <button onclick="logoutUser()" class="btn-logout-prominent" title="Log out to Login Page">
+        🚪 Log Out to Login Page
+      </button>
+    </div>
+  </header>
+
+  <!-- =================================================================== -->
+  <!-- MAIN CONTAINER VIEW (ONLY ACTIVE ROLE DASHBOARD IS SHOWN) -->
+  <!-- =================================================================== -->
+  <main class="main-container">
+
+    <!-- =================================================================== -->
+    <!-- 1. DRIVER DASHBOARD (REAL ROAD ROUTING VIEW) -->
+    <!-- =================================================================== -->
+    <section id="driver-panel" class="panel-view">
+      
+      <!-- DASHBOARD TOP ACTION BANNER WITH LOGOUT OPTION -->
+      <div class="dashboard-banner">
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <span style="font-size:1.2rem;">🚗</span>
+          <strong>Driver Navigation & Slot Reservation Workspace</strong>
+        </div>
+        <button class="btn-logout-small" onclick="logoutUser()">🚪 Log Out to Login Page</button>
+      </div>
+
+      <div class="driver-layout" style="margin-top: 1rem;">
+        
+        <!-- LEFT SIDEBAR: SEARCH & LOCATION FILTERS -->
+        <div class="search-filters">
+          <div class="glass-card">
+            <div class="card-header">
+              <h2 class="card-title">🔍 Search Nearby Parking</h2>
+              <span class="ai-badge">OSRM Road Engine</span>
+            </div>
+
+            <!-- VEHICLE SELECTION TOGGLE -->
+            <div class="form-group" style="margin-bottom: 1rem;">
+              <label class="form-label">Vehicle Category</label>
+              <div class="type-toggle">
+                <button id="toggle-car" class="toggle-btn active" onclick="selectVehicleCategory('CAR')">🚗 Car /
+                  EV</button>
+                <button id="toggle-bike" class="toggle-btn" onclick="selectVehicleCategory('BIKE')">🏍️
+                  Two-Wheeler</button>
+              </div>
+            </div>
+
+            <!-- DRIVER CURRENT LOCATION SELECTOR -->
+            <div class="form-group" style="margin-bottom: 1rem;">
+              <label class="form-label" for="driverOriginSelect">Current GPS Location</label>
+              <select id="driverOriginSelect" class="form-control" onchange="triggerDijkstraCalculation()">
+                <option value="N1">North City Gate (Gandhipuram Main Hwy)</option>
+                <option value="N2">Central District Square (100 Feet Rd)</option>
+                <option value="N3">Tech Park Expressway (Avinashi Rd Junction)</option>
+                <option value="N4">South Boulevard (Race Course Promenade)</option>
+                <option value="N5">Central Metro Transit Terminal</option>
+                <option value="N6">West End Commercial Promenade</option>
+              </select>
+            </div>
+
+            <!-- HOURLY RATE SLIDER -->
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+              <div style="display:flex; justify-content:space-between;">
+                <label class="form-label" for="maxRateSlider">Max Price Limit</label>
+                <span id="rateValLabel" style="font-weight:700; color:var(--color-primary);">₹60 / hr</span>
+              </div>
+              <input type="range" id="maxRateSlider" min="20" max="100" value="60" step="5" class="form-control"
+                oninput="updateRateLabel(this.value)">
+            </div>
+
+            <button class="btn-primary-lg" onclick="searchSlots()">
+              ⚡ Search Available Slots
+            </button>
+          </div>
+
+          <!-- ROUTE OPTION SELECTOR (FASTEST vs ECO) -->
+          <div class="glass-card">
+            <div class="card-header">
+              <h3 class="card-title">🧭 Route Options</h3>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:0.6rem;">
+              <div id="routeOptFastest" class="route-opt-card active" onclick="selectRouteOption('fastest')">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <strong style="color:var(--color-primary);">🔵 Primary Road Route (Fastest)</strong>
+                  <span class="route-time-pill" id="fastestTimePill">2.5 min</span>
+                </div>
+                <span style="font-size:0.75rem; color:var(--text-muted);" id="fastestSubText">via Cross Cut Rd & Tech Expressway (1.2 km)</span>
+              </div>
+
+              <div id="routeOptEco" class="route-opt-card" onclick="selectRouteOption('eco')">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <strong style="color:var(--color-success);">🟢 Eco Road Route (Less Traffic)</strong>
+                  <span class="route-time-pill eco" id="ecoTimePill">3.1 min</span>
+                </div>
+                <span style="font-size:0.75rem; color:var(--text-muted);" id="ecoSubText">via Boulevard Promenade • Save 0.45kg CO₂</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- SMART TRAFFIC REROUTING SIMULATOR CARD -->
+          <div class="glass-card reroute-card">
+            <div class="card-header">
+              <h3 class="card-title" style="color: var(--color-warning);">🔄 Smart Reroute Simulation</h3>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+              Test system response when your target slot is occupied mid-transit. Guides you instantly to the next
+              nearest space via real roads.
+            </p>
+            <button class="btn-warning" style="width: 100%;" onclick="simulateSlotConflict()">
+              ⚠️ Simulate Occupancy Conflict & Reroute
+            </button>
+          </div>
+        </div>
+
+        <!-- RIGHT SIDEBAR: REAL ROAD NETWORK NAVIGATION ENGINE -->
+        <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+          
+          <!-- MAP CONTAINER WITH FLOATING GOOGLE MAPS OVERLAYS -->
+          <div class="glass-card" style="padding: 0.5rem; position:relative;">
+            
+            <div class="canvas-container" style="height: 520px;">
+              <div id="leafletMap" style="width:100%; height:100%;"></div>
+
+              <!-- FLOATING GOOGLE MAPS TURN-BY-TURN CARD OVERLAY (TOP LEFT) -->
+              <div id="gmapsTurnCard" class="gmaps-turn-card">
+                <div class="turn-icon-box">⬆️</div>
+                <div>
+                  <div id="gmapsNextInstruction" class="turn-instruction-text">In 200m, turn right onto Tech Park Rd</div>
+                  <div id="gmapsDestSubtext" class="turn-subtext">Heading to Green Plaza Private Garage (Bay A1)</div>
+                </div>
+              </div>
+
+              <!-- FLOATING GOOGLE MAPS LIVE CONTROLS (BOTTOM BAR) -->
+              <div class="gmaps-control-bar">
+                <div style="display:flex; flex-direction:column;">
+                  <span style="font-size:0.7rem; color:var(--text-muted); text-transform:uppercase;">Estimated Arrival</span>
+                  <span id="gmapsEtaTime" style="font-size:1.2rem; font-weight:800; color:var(--color-success);">09:58 AM</span>
+                </div>
+                <div style="display:flex; gap:1.25rem; align-items:center;">
+                  <div>
+                    <span style="font-size:0.7rem; color:var(--text-muted);">Duration</span>
+                    <div id="gmapsDriveTime" style="font-weight:700; color:#fff;">2.5 mins</div>
+                  </div>
+                  <div style="border-left:1px solid var(--border-glass); padding-left:1.25rem;">
+                    <span style="font-size:0.7rem; color:var(--text-muted);">Road Distance</span>
+                    <div id="gmapsDistance" style="font-weight:700; color:#fff;">1.2 km</div>
+                  </div>
+                  <div style="border-left:1px solid var(--border-glass); padding-left:1.25rem;">
+                    <span style="font-size:0.7rem; color:var(--text-muted);">Eco Offset</span>
+                    <div id="gmapsEcoOffset" style="font-weight:700; color:var(--color-success);">0.36 kg CO₂</div>
+                  </div>
+                </div>
+                <button id="startNavBtn" class="gmaps-nav-btn" onclick="toggleLiveNavigationSim()">
+                  ▶ Start Live Navigation
+                </button>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- NEARBY VERIFIED PARKING SPACES LIST -->
+          <div class="glass-card">
+            <div class="card-header">
+              <h3 class="card-title">📍 Nearby Verified Parking Spaces</h3>
+              <span id="slotCountBadge" class="form-label">4 Spaces Available</span>
+            </div>
+            <div id="searchResultsList" class="card-grid">
+              <!-- Dynamically populated parking space cards -->
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- 2. SPACE RENTING OWNER DASHBOARD -->
+    <!-- =================================================================== -->
+    <section id="owner-panel" class="panel-view">
+      
+      <!-- DASHBOARD TOP ACTION BANNER WITH LOGOUT OPTION -->
+      <div class="dashboard-banner">
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <span style="font-size:1.2rem;">🏠</span>
+          <strong>Space Renting Owner Management Dashboard</strong>
+        </div>
+        <button class="btn-logout-small" onclick="logoutUser()">🚪 Log Out to Login Page</button>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 1.5rem; margin-top: 1rem;">
+        
+        <!-- OWNER OVERVIEW KPIS -->
+        <div class="card-grid">
+          <div class="glass-card kpi-card">
+            <div class="kpi-icon">🅿️</div>
+            <div>
+              <div id="ownerSpacesCount" class="kpi-value">2</div>
+              <div class="kpi-label">Active Listed Properties</div>
+            </div>
+          </div>
+          <div class="glass-card kpi-card">
+            <div class="kpi-icon">💰</div>
+            <div>
+              <div id="ownerEarningsVal" class="kpi-value eco-green">₹1,440.00</div>
+              <div class="kpi-label">Total Rental Revenue</div>
+            </div>
+          </div>
+          <div class="glass-card kpi-card" style="justify-content: space-between;">
+            <div>
+              <div id="ownerBalanceVal" class="kpi-value" style="color:var(--color-primary);">₹720.00</div>
+              <div class="kpi-label">Available Balance</div>
+            </div>
+            <button class="btn-primary-lg" style="padding:0.6rem 1rem;" onclick="openPayoutModal()">💸 Withdraw Earnings</button>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h2>🏠 Property Portfolio & Parking Bays</h2>
+          <button class="btn-primary-lg" style="padding:0.6rem 1.25rem;" onclick="openAddListingModal()">➕ List New Parking Space</button>
+        </div>
+
+        <!-- VISUAL PARKING BAY LAYOUT GRID -->
+        <div class="glass-card">
+          <div class="card-header">
+            <h3 class="card-title">📡 Live Parking Bay Occupancy Grid</h3>
+            <div style="display: flex; gap: 1rem; font-size: 0.8rem;">
+              <span style="color:var(--color-success); font-weight:600;">🟩 Available Spot</span>
+              <span style="color:var(--color-warning); font-weight:600;">⏳ Reserved (15m Lock)</span>
+              <span style="color:var(--color-accent); font-weight:600;">🚗 Occupied</span>
+            </div>
+          </div>
+          <div id="ownerSlotGrid" class="slot-grid">
+            <!-- Visual slot boxes inserted dynamically -->
+          </div>
+        </div>
+
+        <!-- REGISTERED PROPERTIES TABLE -->
+        <div class="glass-card">
+          <div class="card-header">
+            <h3 class="card-title">📋 Managed Properties</h3>
+          </div>
+          <div class="table-responsive">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Property Name</th>
+                  <th>Location Address</th>
+                  <th>Hourly Rate</th>
+                  <th>Total Capacity</th>
+                  <th>Operating Hours</th>
+                  <th>Verification Status</th>
+                </tr>
+              </thead>
+              <tbody id="ownerListingsTable">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- 3. ADMIN CONTROL DASHBOARD -->
+    <!-- =================================================================== -->
+    <section id="admin-panel" class="panel-view">
+      
+      <!-- DASHBOARD TOP ACTION BANNER WITH LOGOUT OPTION -->
+      <div class="dashboard-banner">
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <span style="font-size:1.2rem;">🛡️</span>
+          <strong>System Administrator Operations & Financial Supervision Center</strong>
+        </div>
+        <button class="btn-logout-small" onclick="logoutUser()">🚪 Log Out to Login Page</button>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 1.5rem; margin-top: 1rem;">
+        
+        <!-- ADMIN KPIS -->
+        <div class="card-grid">
+          <div class="glass-card kpi-card">
+            <div class="kpi-icon">👥</div>
+            <div>
+              <div id="adminDriversCount" class="kpi-value">3</div>
+              <div class="kpi-label">Active Drivers</div>
+            </div>
+          </div>
+          <div class="glass-card kpi-card">
+            <div class="kpi-icon">🏡</div>
+            <div>
+              <div id="adminOwnersCount" class="kpi-value">3</div>
+              <div class="kpi-label">Registered Property Owners</div>
+            </div>
+          </div>
+          <div class="glass-card kpi-card">
+            <div class="kpi-icon">🚗</div>
+            <div>
+              <div id="adminSpacesCount" class="kpi-value">11</div>
+              <div class="kpi-label">Monetized Parking Spots</div>
+            </div>
+          </div>
+          <div class="glass-card kpi-card">
+            <div class="kpi-icon">🌱</div>
+            <div>
+              <div id="adminCarbonOffset" class="kpi-value eco-green">15.34 kg</div>
+              <div class="kpi-label">CO₂ Saved (SDG 11/12 Impact)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VERIFICATION QUEUE & FINANCIAL SPLIT -->
+        <div class="card-grid" style="grid-template-columns: 2fr 1fr;">
+          <div class="glass-card">
+            <div class="card-header">
+              <h3 class="card-title">🔍 Pending Verification Queue</h3>
+            </div>
+            <div class="table-responsive">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Name / Property Title</th>
+                    <th>Details</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="adminVerificationTable">
+                  <!-- Pending items -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- FINANCIAL BREAKDOWN -->
+          <div class="glass-card">
+            <div class="card-header">
+              <h3 class="card-title">💼 Financial Revenue Split</h3>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:0.85rem; margin-top:0.5rem;">
+              <div style="display:flex; justify-content:space-between;">
+                <span class="text-muted">Total Gross Bookings:</span>
+                <span id="adminGrossRev" style="font-family:var(--font-mono); font-weight:700;">₹160.00</span>
+              </div>
+              <div style="display:flex; justify-content:space-between;">
+                <span class="text-muted">Platform Commission (10%):</span>
+                <span id="adminPlatformFee"
+                  style="font-family:var(--font-mono); font-weight:700; color:var(--color-primary);">₹16.00</span>
+              </div>
+              <div style="display:flex; justify-content:space-between;">
+                <span class="text-muted">Property Owner Payouts (90%):</span>
+                <span id="adminOwnerPayouts"
+                  style="font-family:var(--font-mono); font-weight:700; color:var(--color-success);">₹144.00</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUPERVISION CONTROLS -->
+        <div class="glass-card">
+          <div class="card-header">
+            <h3 class="card-title">🛠️ System Supervision & Lock Overrides</h3>
+          </div>
+          <div style="display:flex; gap:1rem; align-items:center;">
+            <input type="text" id="overrideSlotInput" placeholder="Enter Slot ID (e.g. S-101-B)" class="form-control"
+              style="max-width:260px;">
+            <button class="btn-warning" onclick="adminForceReleaseSlot()">🔓 Force Release Lock</button>
+          </div>
+        </div>
+
+        <!-- REAL-TIME AUDIT LOGS -->
+        <div class="glass-card">
+          <div class="card-header">
+            <h3 class="card-title">📜 Real-Time Audit & Event Log Feed</h3>
+          </div>
+          <div id="systemLogsFeed" class="logs-feed-box">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- =================================================================== -->
+  <!-- MODAL CONTAINERS -->
+  <!-- =================================================================== -->
+
+  <!-- DIGITAL BOOKING RECEIPT MODAL -->
+  <div id="bookingModal" class="modal-backdrop">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeModal('bookingModal')">✕</button>
+      <h3 style="margin-bottom: 0.5rem; color: var(--color-primary);">🎟️ Confirmed Digital Booking Pass</h3>
+      <div id="receiptContent"
+        style="margin: 1rem 0; font-family: var(--font-mono); font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.6rem;">
+        <!-- Receipt details -->
+      </div>
+      <button class="btn-primary-lg" onclick="confirmCheckinAction()">
+        ✅ Confirm Arrival & Park Vehicle
+      </button>
+    </div>
+  </div>
+
+  <!-- REGISTER PROPERTY MODAL -->
+  <div id="addListingModal" class="modal-backdrop">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeModal('addListingModal')">✕</button>
+      <h3 style="margin-bottom: 1rem;">➕ Register Parking Space</h3>
+      <form onsubmit="submitNewListing(event)" style="display:flex; flex-direction:column; gap:0.75rem;">
+        <div class="form-group">
+          <label class="form-label">Property Title</label>
+          <input type="text" id="newTitle" required class="form-control" placeholder="e.g. Metro Plaza Garage">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Street Address</label>
+          <input type="text" id="newAddress" required class="form-control" placeholder="e.g. 45 Commercial Avenue">
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+          <div class="form-group">
+            <label class="form-label">Hourly Rate (₹)</label>
+            <input type="number" id="newRate" value="35" required class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Capacity (Slots)</label>
+            <input type="number" id="newCapacity" value="2" min="1" max="10" required class="form-control">
+          </div>
+        </div>
+        <button type="submit" class="btn-primary-lg" style="margin-top:0.5rem;">Submit for Verification</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- PAYOUT WITHDRAWAL MODAL -->
+  <div id="payoutModal" class="modal-backdrop">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeModal('payoutModal')">✕</button>
+      <h3 style="margin-bottom: 1rem; color: var(--color-success);">💸 Earnings Bank Payout</h3>
+      <form onsubmit="submitPayoutWithdrawal(event)" style="display:flex; flex-direction:column; gap:0.75rem;">
+        <div class="form-group">
+          <label class="form-label">Withdrawal Amount (₹)</label>
+          <input type="number" id="payoutAmountInput" value="500" required class="form-control">
+        </div>
+        <button type="submit" class="btn-primary-lg" style="margin-top:0.5rem;">Transfer to Bank Account</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div><strong>MetroPark</strong> • Smart Urban Mobility Infrastructure Platform</div>
+  </footer>
+
+  <!-- SCRIPTS -->
+  <script src="js/app.js"></script>
+  <script src="js/driver.js"></script>
+  <script src="js/owner.js"></script>
+  <script src="js/admin.js"></script>
+  <script src="js/ai_agent.js"></script>
+</body>
+
+</html>
